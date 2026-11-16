@@ -7,3 +7,12 @@ ops_agent_runtime:
   read_timeout_seconds: 120  # how long the supervisor waits for ops_agent's reply before giving up
 supervisor_runtime:
   read_timeout_seconds: 300  # bridge waits for the supervisor, which may itself wait up to 120 s on ops_agent
+runbooks:
+  max_age_days: 180  # a runbook whose "Last reviewed" date is older than this is flagged as possibly outdated
+  s3_prefix: runbooks/  # folder in RUNBOOK_BUCKET where the runbook PDFs live
+  required_sections:  # headings every runbook should have; any that are missing are reported as gaps
+    - First 5 minutes
+    - Diagnosis
+    - Mitigation
+    - Escalation
+    - Verify recovery

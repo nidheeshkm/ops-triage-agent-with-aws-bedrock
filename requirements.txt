@@ -6,3 +6,4 @@ bedrock-agentcore-starter-toolkit==0.3.14
 pyyaml==6.0.3
 fastapi==0.163.0
 uvicorn==0.54.0
+pypdf==7.1.0

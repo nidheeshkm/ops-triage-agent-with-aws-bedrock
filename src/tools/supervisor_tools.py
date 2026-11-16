@@ -18,6 +18,20 @@ _agentcore = _session.client(
 )
 
 
+def _invoke_ops_agent(payload: dict) -> str:
+    """Call the deployed ops_agent with a JSON payload; return its "result" text, or an error message."""
+    try:
+        response = _agentcore.invoke_agent_runtime(
+            agentRuntimeArn=settings.OPS_AGENT_RUNTIME_ARN,  # which deployed runtime to call (from .env)
+            runtimeSessionId=str(uuid.uuid4()),  # fresh session per call; the API needs 33+ characters, a UUID has 36
+            payload=json.dumps(payload).encode("utf-8"),  # JSON body for ops_agent's app.py
+        )
+        body = json.loads(response["response"].read())  # read the streamed reply body, then parse its JSON
+        return body.get("result", str(body))  # app.py returns {"result": "..."}; fall back to the raw body
+    except (ClientError, BotoCoreError, ValueError) as err:  # AWS error, network error, or a reply that isn't JSON
+        return f"ops_agent call failed: {err}"  # report it instead of crashing the caller
+
+
 @tool
 def ask_ops_agent(question: str) -> str:
     """Ask the ops_agent specialist about a service's recent deployments, active alerts or runbooks.
@@ -28,13 +42,9 @@ def ask_ops_agent(question: str) -> str:
     Args:
         question: A complete question for ops_agent, naming the service and the symptom.
     """
-    try:
-        response = _agentcore.invoke_agent_runtime(
-            agentRuntimeArn=settings.OPS_AGENT_RUNTIME_ARN,  # which deployed runtime to call (from .env)
-            runtimeSessionId=str(uuid.uuid4()),  # fresh session per question; the API needs 33+ characters, a UUID has 36
-            payload=json.dumps({"prompt": question}).encode("utf-8"),  # same shape app.py's entrypoint reads
-        )
-        body = json.loads(response["response"].read())  # read the streamed reply body, then parse its JSON
-        return body.get("result", str(body))  # app.py returns {"result": "..."}; fall back to the raw body
-    except (ClientError, BotoCoreError, ValueError) as err:  # AWS error, network error, or a reply that isn't JSON
-        return f"ops_agent call failed: {err}"  # tell the supervisor instead of crashing it
+    return _invoke_ops_agent({"prompt": question})  # normal mode: ops_agent runs its agent loop
+
+
+def request_next_steps(runbook_id: str, alert: str) -> str:
+    """Ask ops_agent for the full, code-assembled next steps of one runbook. Used by the button, not by the model."""
+    return _invoke_ops_agent({"mode": "next_steps", "runbook_id": runbook_id, "prompt": alert})

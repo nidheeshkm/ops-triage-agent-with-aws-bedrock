@@ -25,6 +25,7 @@ PROFILE = os.getenv("AWS_PROFILE")  # unset in the cloud, where the IAM role is 
 REGION = os.getenv("AWS_REGION")
 MODEL_ID = os.getenv("MODEL_ID")
 KNOWLEDGE_BASE_ID = os.getenv("KNOWLEDGE_BASE_ID")
+RUNBOOK_BUCKET = os.getenv("RUNBOOK_BUCKET")  # S3 bucket holding the runbook PDFs; get_runbook reads whole files from it
 GUARDRAIL_ID = os.getenv("GUARDRAIL_ID")
 GUARDRAIL_VERSION = os.getenv("GUARDRAIL_VERSION")
 OPS_AGENT_RUNTIME_ARN = os.getenv("OPS_AGENT_RUNTIME_ARN")  # deployed ops_agent; the supervisor's tool calls it

@@ -2,9 +2,10 @@
 import hashlib  # SHA-256, the hash Slack signs requests with
 import hmac  # keyed hashing and a constant-time compare for the signature check
 import json  # parses the secret and Slack's JSON payloads
+import re  # converts Markdown bold to Slack bold and finds the runbook ID
 import time  # rejects old requests (replay protection)
 import urllib.request  # calls Slack's chat.postMessage without adding a package
-
+import urllib.parse  # decodes the form body Slack sends for button clicks
 import boto3  # AWS SDK; reads the Slack secret
 
 from config import settings  # .env values: SLACK_SECRET_ID, SLACK_ALERT_CHANNEL_ID, profile, region
@@ -47,11 +48,13 @@ def parse_alert(payload: dict) -> dict | None:
         return None
     return {"event_id": payload.get("event_id"), "channel": event["channel"], "ts": event["ts"], "text": text}
 
-def post_message(bot_token: str, channel: str, text: str, thread_ts: str | None = None) -> dict:
+def post_message(bot_token: str, channel: str, text: str, thread_ts: str | None = None, blocks: list | None = None) -> dict:
     """Post text to a Slack channel, as a thread reply when thread_ts is given; return Slack's JSON reply."""
     body = {"channel": channel, "text": text}  # where and what to post
     if thread_ts:  # reply under the alert instead of as a new channel message
         body["thread_ts"] = thread_ts
+    if blocks:  # rich layout (buttons); `text` stays as the notification and fallback text
+        body["blocks"] = blocks
     request = urllib.request.Request(
         "https://slack.com/api/chat.postMessage",  # Slack Web API method for posting messages
         data=json.dumps(body).encode("utf-8"),  # JSON body as bytes
@@ -60,3 +63,75 @@ def post_message(bot_token: str, channel: str, text: str, thread_ts: str | None 
     )
     with urllib.request.urlopen(request, timeout=10) as response:  # 10 s cap so a slow Slack can't hang the worker
         return json.loads(response.read())  # {"ok": true, "ts": ...} on success, {"ok": false, "error": ...} on failure
+
+_MACHINE_LINES = re.compile(r"^(RUNBOOK_ID|DEFAULT_SEVERITY):.*\n?", re.M)  # lines meant for code, not people
+
+
+def to_slack_mrkdwn(text: str) -> str:
+    """Convert an agent's Markdown answer to Slack mrkdwn and drop machine-only lines."""
+    text = _MACHINE_LINES.sub("", text)  # remove RUNBOOK_ID / DEFAULT_SEVERITY if an agent echoed them
+    text = re.sub(r"\*\*(.+?)\*\*", r"*\1*", text)  # **bold** -> *bold*
+    text = re.sub(r"^RUNBOOK WARNING:", ":warning: *Runbook warning:*", text, flags=re.M)  # warnings stand out in Slack
+    return text.strip()
+
+
+NEXT_STEPS_ACTION = "next_steps"  # action_id that the /slack/interactions endpoint listens for
+_RUNBOOK_LINE = re.compile(r"^Runbook:\s*(RB-\d{3})\s*$", re.M)  # the triage reply's fixed last line
+
+
+def runbook_id_of(text: str) -> str | None:
+    """Return the RB-NNN from a triage reply's 'Runbook:' line, or None if no runbook matched."""
+    found = _RUNBOOK_LINE.search(text)
+    return found.group(1) if found else None
+
+
+def triage_blocks(text: str, alert: str) -> list:
+    """Block Kit layout: the triage text, plus a 'Help me with next steps' button when a runbook matched."""
+    blocks = [{"type": "section", "text": {"type": "mrkdwn", "text": to_slack_mrkdwn(text)[:3000]}}]  # a section holds at most 3000 characters
+    runbook_id = runbook_id_of(text)
+    if runbook_id:  # no runbook, no button: there would be nothing to fetch
+        blocks.append({
+            "type": "actions",
+            "elements": [{
+                "type": "button",
+                "action_id": NEXT_STEPS_ACTION,
+                "text": {"type": "plain_text", "text": "Help me with next steps"},
+                "value": json.dumps({"runbook_id": runbook_id, "alert": alert[:1500]}),  # everything the click needs; Slack allows 2000 characters
+            }],
+        })
+    return blocks
+
+def parse_next_steps_click(body: bytes) -> dict | None:
+    """Return the details of a 'Help me with next steps' click from the alert channel, or None for anything else."""
+    form = urllib.parse.parse_qs(body.decode("utf-8"))  # Slack sends payload=<json> as a URL-encoded form
+    payload = json.loads(form.get("payload", ["{}"])[0])  # the interaction itself
+    if payload.get("type") != "block_actions":  # only button clicks; ignore other interaction types
+        return None
+    action = next((a for a in payload.get("actions", []) if a.get("action_id") == NEXT_STEPS_ACTION), None)
+    channel = payload.get("channel", {}).get("id")
+    if not action or channel != settings.SLACK_ALERT_CHANNEL_ID:  # another button, or another channel
+        return None
+    value = json.loads(action.get("value") or "{}")  # runbook_id + alert, set by triage_blocks()
+    message = payload.get("message", {})  # the bot's triage reply that holds the button
+    return {
+        "runbook_id": value.get("runbook_id", ""),
+        "alert": value.get("alert", ""),
+        "channel": channel,
+        "message_ts": message.get("ts"),  # the triage reply, whose button gets replaced
+        "thread_ts": message.get("thread_ts") or message.get("ts"),  # the alert's thread, where the steps go
+        "triage_text": message.get("text", ""),  # kept as the fallback text when the reply is updated
+        "section_block": (message.get("blocks") or [None])[0],  # the triage text block, kept as-is
+        "user": payload.get("user", {}).get("id"),  # who clicked, for the "requested by" note
+    }
+
+
+def update_message(bot_token: str, channel: str, ts: str, text: str, blocks: list) -> dict:
+    """Replace an existing bot message's content, here to swap the button for a 'requested by' note."""
+    request = urllib.request.Request(
+        "https://slack.com/api/chat.update",  # Slack Web API method for editing a message
+        data=json.dumps({"channel": channel, "ts": ts, "text": text, "blocks": blocks}).encode("utf-8"),
+        headers={"Authorization": f"Bearer {bot_token}", "Content-Type": "application/json; charset=utf-8"},
+        method="POST",
+    )
+    with urllib.request.urlopen(request, timeout=10) as response:  # same 10 s cap as post_message
+        return json.loads(response.read())  # {"ok": true, ...} or {"ok": false, "error": ...}

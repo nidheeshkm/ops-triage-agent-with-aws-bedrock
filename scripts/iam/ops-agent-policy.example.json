@@ -12,6 +12,19 @@
       "Effect": "Allow",
       "Action": "bedrock:ApplyGuardrail",
       "Resource": "arn:aws:bedrock:[YOUR-AWS-REGION]:[ACCOUNT-ID]:guardrail/[GUARDRAIL-ID]"
+    },
+    {
+      "Sid": "ListRunbooks",
+      "Effect": "Allow",
+      "Action": "s3:ListBucket",
+      "Resource": "arn:aws:s3:::[RUNBOOK-BUCKET-NAME]",
+      "Condition": { "StringLike": { "s3:prefix": "runbooks/*" } }
+    },
+    {
+      "Sid": "ReadRunbooks",
+      "Effect": "Allow",
+      "Action": "s3:GetObject",
+      "Resource": "arn:aws:s3:::[RUNBOOK-BUCKET-NAME]/runbooks/*"
     }
   ]
 }
