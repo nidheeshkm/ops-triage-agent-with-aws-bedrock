@@ -1,0 +1,20 @@
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "ReadSlackSecret",
+      "Effect": "Allow",
+      "Action": "secretsmanager:GetSecretValue",
+      "Resource": "arn:aws:secretsmanager:[YOUR-AWS-REGION]:[ACCOUNT-ID]:secret:ops-supervisor/slack-*"
+    },
+    {
+      "Sid": "InvokeSupervisor",
+      "Effect": "Allow",
+      "Action": "bedrock-agentcore:InvokeAgentRuntime",
+      "Resource": [
+        "[SUPERVISOR-RUNTIME-ARN]",
+        "[SUPERVISOR-RUNTIME-ARN]/*"
+      ]
+    }
+  ]
+}

@@ -1,0 +1,6 @@
+[project]
+name = "ops-agent"  # project name
+version = "0.1.0"
+description = "Read-only ops triage agent on Bedrock, Strands and AgentCore"
+requires-python = ">=3.12"  # matches the Python in .venv
+# packages are NOT listed here: requirements.txt is the single place they are pinned

@@ -1,0 +1,114 @@
+# Sample alerts for validating ops_supervisor_agent's runbook choice.
+# Post each `text` as a NEW top-level message in the alert channel, then compare
+# the bot's "Runbook:" line with expected_runbook. Alert text never names the runbook.
+# Severity guide: runbook SEV1 -> Critical, SEV2 -> High.
+
+RB-001 Storefront unavailable:
+  - id: A01
+    expected_runbook: RB-001
+    expected_severity: Critical
+    text: "[FIRING] storefront: homepage synthetic check failing from 3 locations (Sydney, Frankfurt, Virginia) for 4 minutes. Status 503."
+  - id: A02
+    expected_runbook: RB-001
+    expected_severity: Critical
+    text: "[FIRING] storefront: 5xx rate 7.8% (threshold 2%) for 6 minutes on all brand sites, started 3 minutes after a code activation."
+
+RB-002 Slow storefront, high latency:
+  - id: A03
+    expected_runbook: RB-002
+    expected_severity: High
+    text: "[FIRING] storefront: P95 page response time 5.4s (threshold 3s) for 12 minutes. Site still serving, no rise in 5xx."
+  - id: A04
+    expected_runbook: RB-002
+    expected_severity: High
+    text: "[WARNING] storefront: Apdex dropped to 0.71 (target 0.90) after the email campaign launch; CDN cache hit ratio down from 92% to 61%."
+  - id: A22
+    expected_runbook: RB-002
+    expected_severity: High
+    note: "tricky: slowness caused by a third-party call; RB-002 (slow pages), not RB-005 (no 5xx) or RB-006 (no errors)"
+    text: "[FIRING] storefront: product detail pages slow, P95 4.8s for 15 minutes; Product-Show calls reviews-service 6 times per request, no errors."
+
+RB-003 SFCC job failed or stuck:
+  - id: A05
+    expected_runbook: RB-003
+    expected_severity: High
+    text: "[FIRING] Business Manager job CatalogImport-AU ended with status ERROR at step ImportCatalog: file not found on WebDAV."
+  - id: A06
+    expected_runbook: RB-003
+    expected_severity: High
+    text: "[WARNING] Business Manager job InventoryImport-Hourly running for 2h 40m (normal 35m); last log line written 95 minutes ago."
+
+RB-004 Search index and catalog data stale:
+  - id: A07
+    expected_runbook: RB-004
+    expected_severity: High
+    text: "[FIRING] search: zero results for the top 20 search terms on the brand-au site for 10 minutes."
+  - id: A08
+    expected_runbook: RB-004
+    expected_severity: High
+    text: "[WARNING] search: index product count 41,200 vs catalog 44,950 (8.3% gap) after the nightly SearchIndex-Rebuild."
+
+RB-005 Third-party API 5xx errors:
+  - id: A09
+    expected_runbook: RB-005
+    expected_severity: High
+    text: "[FIRING] integration: tax-service call error rate 18% (threshold 5%), HTTP 503 from the vendor for 7 minutes; circuit breaker open."
+  - id: A10
+    expected_runbook: RB-005
+    expected_severity: High
+    text: "[WARNING] integration: reviews-service returning 429 Too Many Requests on 12% of calls for 6 minutes; product pages degraded."
+  - id: A21
+    expected_runbook: RB-005
+    expected_severity: Critical
+    note: "tricky: checkout is blocked, but by the shipping-rates vendor, not the payment gateway; RB-005, not RB-009"
+    text: "[FIRING] checkout: shipping-rates service timeouts on 15% of calls for 5 minutes; shoppers blocked at the shipping step."
+
+RB-006 SFCC script errors and error log spike:
+  - id: A11
+    expected_runbook: RB-006
+    expected_severity: High
+    text: "[FIRING] sfcc-logs: error log count 6x baseline for 10 minutes; new exception 'TypeError: Cannot read property price of null' in Product-Show."
+  - id: A12
+    expected_runbook: RB-006
+    expected_severity: High
+    text: "[WARNING] sfcc-logs: quota violation api.dataobject.collections in the Search-Show controller, 340 occurrences in 15 minutes."
+
+RB-007 Customers unable to log in:
+  - id: A13
+    expected_runbook: RB-007
+    expected_severity: High
+    text: "[FIRING] auth: login success rate 52% of baseline for 12 minutes; shopper login API returning 401 invalid_client."
+  - id: A14
+    expected_runbook: RB-007
+    expected_severity: High
+    text: "[WARNING] auth: spike of HTTP 429 on the login endpoint, 9,800 attempts from 40 IPs in 10 minutes; login synthetic failing."
+
+RB-008 Add to cart failures:
+  - id: A15
+    expected_runbook: RB-008
+    expected_severity: Critical
+    text: "[FIRING] basket: add to cart success rate 38% (baseline 97%) for 6 minutes across all products and brands."
+  - id: A16
+    expected_runbook: RB-008
+    expected_severity: Critical
+    text: "[WARNING] basket: add to cart failing only for variant products since promotion BLACKFRIDAY30 went live; basket API error rate 4%."
+
+RB-009 Payment gateway failure:
+  - id: A17
+    expected_runbook: RB-009
+    expected_severity: Critical
+    text: "[FIRING] checkout: payment authorization failure rate 23% (threshold 10%) for 8 minutes; PSP returning gateway timeouts."
+  - id: A18
+    expected_runbook: RB-009
+    expected_severity: Critical
+    text: "[FIRING] checkout: PSP responding 401 Unauthorized on all authorization calls since 09:12 UTC; checkout conversion down 70%."
+
+RB-010 Order placement and export failures:
+  - id: A19
+    expected_runbook: RB-010
+    expected_severity: Critical
+    text: "[FIRING] orders: 412 orders created but not exported to OMS within 15 minutes; OrderExport job errors: authentication failed."
+  - id: A20
+    expected_runbook: RB-010
+    expected_severity: Critical
+    text: "[WARNING] orders: order confirmation emails missing for 35 minutes; orders per minute normal, export status OK."

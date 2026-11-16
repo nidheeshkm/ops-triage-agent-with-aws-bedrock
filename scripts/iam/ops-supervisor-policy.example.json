@@ -1,0 +1,20 @@
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "InvokeOpsAgent",
+      "Effect": "Allow",
+      "Action": "bedrock-agentcore:InvokeAgentRuntime",
+      "Resource": [
+        "[OPS-AGENT-RUNTIME-ARN]",
+        "[OPS-AGENT-RUNTIME-ARN]/*"
+      ]
+    },
+    {
+      "Sid": "ApplyOpsGuardrail",
+      "Effect": "Allow",
+      "Action": "bedrock:ApplyGuardrail",
+      "Resource": "arn:aws:bedrock:[YOUR-AWS-REGION]:[ACCOUNT-ID]:guardrail/[GUARDRAIL-ID]"
+    }
+  ]
+}

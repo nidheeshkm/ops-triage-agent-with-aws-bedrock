@@ -1,0 +1,8 @@
+boto3==1.44.2
+strands-agents==1.64.0
+python-dotenv==1.2.4
+bedrock-agentcore==1.26.0
+bedrock-agentcore-starter-toolkit==0.3.14
+pyyaml==6.0.3
+fastapi==0.163.0
+uvicorn==0.54.0

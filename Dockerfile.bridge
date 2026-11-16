@@ -1,0 +1,29 @@
+# Slim official Python image; matches requires-python >=3.12 in pyproject.toml
+FROM python:3.12-slim
+
+# No .pyc files; logs go straight to stdout so docker logs and Kubernetes see them at once
+ENV PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1
+
+WORKDIR /app
+
+# Dependencies first, so code changes don't reinstall every package on rebuild
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+
+# Only the code the bridge needs: config loader + YAML, and src/
+COPY config/ config/
+COPY src/ src/
+
+# Run as a non-root user; many Kubernetes clusters reject root containers
+RUN useradd --create-home --uid 10001 appuser
+USER 10001
+
+# Port comes from the environment; 8000 unless the platform sets PORT
+ENV PORT=8000
+EXPOSE 8000
+
+# Docker's own health check against /health; Kubernetes ignores this and uses its probes instead
+HEALTHCHECK --interval=30s --timeout=3s --start-period=20s CMD python -c "import os, urllib.request; urllib.request.urlopen('http://127.0.0.1:' + os.environ['PORT'] + '/health', timeout=2)" || exit 1
+
+# exec makes uvicorn PID 1, so it receives SIGTERM and shuts down cleanly when a pod stops
+CMD ["sh", "-c", "exec uvicorn src.api.main:app --host 0.0.0.0 --port ${PORT}"]

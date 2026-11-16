@@ -1,0 +1,8 @@
+.env
+.venv/
+__pycache__/
+.bedrock_agentcore.yaml
+.bedrock_agentcore/
+.DS_Store
+scripts/iam/*.json
+!scripts/iam/*.example.json

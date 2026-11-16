@@ -1,0 +1,3 @@
+temperature: 0.2  # low = more consistent triage answers
+guardrail_trace: enabled  # return details of what the guardrail blocked
+guardrail_latest_message: true  # check only the newest user message, not the whole history
